@@ -29,11 +29,11 @@ Requires Python 3.11+.
 
 ### As a Claude Code plugin (recommended)
 
-Install the plugin from GitHub:
+Add the marketplace and install the plugin:
 
 ```
 /plugin marketplace add anitasrinivasan/cite2fn
-/plugin install cite2fn
+/plugin install cite2fn@cite2fn
 ```
 
 Then install the Python dependencies (one time):
