@@ -36,6 +36,8 @@ The original file is never modified. You always get a new `_converted.docx`.
 - Detects 5 citation patterns: external hyperlinks, internal anchor links, parentheticals, inline author-date, and existing footnotes
 - Handles split hyperlinks from Google Docs exports (where a single citation spans multiple XML elements)
 - Fetches bibliographic metadata from academic sources (arXiv, SSRN, DOI, ACM DL, and more)
+- Extracts metadata from PDF sources when `pymupdf` is installed
+- Renders proper Bluebook formatting in footnotes — italic titles and small caps journal names
 - Supports both footnotes and endnotes with arabic numeral numbering
 - Preserves author names that are grammatically part of a sentence
 - Tracks repeated sources for *Id.* and *supra* short forms
@@ -60,6 +62,12 @@ Then install the Python dependencies (one time):
 
 ```bash
 pip install python-docx lxml httpx beautifulsoup4
+```
+
+For PDF metadata extraction (optional):
+
+```bash
+pip install pymupdf
 ```
 
 ### Manual install
@@ -114,3 +122,4 @@ Options: `--endnotes` for endnotes instead of footnotes, `--keep-references` to 
 - `lxml` — XML manipulation for footnotes and document internals
 - `httpx` — fetching URLs for metadata
 - `beautifulsoup4` — parsing fetched HTML for metadata extraction
+- `pymupdf` (optional) — PDF metadata extraction for sources that link to PDFs
