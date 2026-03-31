@@ -1,27 +1,47 @@
 # cite2fn
 
-Convert social-science citations in Word documents (.docx) to Bluebook-formatted footnotes or endnotes.
+A Claude Code plugin that converts hyperlinked citations, parenthetical references, and inline author-date mentions in Word documents into properly formatted Bluebook footnotes or endnotes.
 
-Legal academics often draft with author-date parentheticals, hyperlinked author names, or references sections rather than Bluebook footnotes. Converting by hand is tedious. This tool automates the mechanical parts and uses Claude for the Bluebook formatting step.
+## The problem
 
-## What it does
+Legal academics and law review authors frequently draft in Google Docs or Word using hyperlinks, author-date parentheticals, and references sections. Journals and publishers require Bluebook citation format with footnotes. Converting a 40-page paper by hand means hours of tedious, error-prone work: looking up each source, formatting it, inserting footnotes, cleaning up the body text, and tracking repeated citations for *supra* and *Id.*
 
-- Detects all citations in a .docx: hyperlinked (external URLs and internal anchors), parenthetical `(Smith et al., 2023)`, inline `Smith (2023)`, and existing footnotes
-- Fetches source URLs for bibliographic metadata (title, authors, journal, year)
-- Matches internal-anchor citations to a References section
-- Formats citations in Bluebook 21st edition style (via Claude)
-- Inserts footnotes or endnotes into the document
-- Cleans inline text: removes years, parentheticals, and hyperlink formatting while preserving author names that serve a grammatical role
-- Applies *Id.* and *supra* short forms for repeated sources
-- Flags anything it can't resolve via Word comments
-- Removes the References section (the information now lives in footnotes)
-- Never modifies the original file
+## How it works
 
-## What it does NOT do
+Drop a .docx file into Claude Code, and the plugin handles the full conversion:
 
-- Guarantee correct Bluebook formatting — every output needs human review
-- Replace editorial judgment on whether author names should stay in the body text
-- Handle documents already in Bluebook footnote style
+1. **Scans** the document for every citation — hyperlinks, parentheticals like `(Smith 2023)`, inline references like `Bisbee et al. (2023) found...`, and existing footnotes with bare URLs
+2. **Fetches metadata** from source URLs (title, authors, journal, year) so citations can be formatted correctly
+3. **Resolves internal references** by matching anchor links and parentheticals to a References/Bibliography section
+4. **Formats** each citation in Bluebook 21st edition style
+5. **Inserts** footnotes (or endnotes) into the document
+6. **Cleans up** the body text — removes redundant years, parentheticals, and hyperlink formatting while preserving author names that serve a grammatical role in the sentence
+7. **Applies short forms** — *Id.* for consecutive citations to the same source, *supra* for non-consecutive repeats
+8. **Flags uncertainties** with Word comments so you know exactly what to double-check
+
+The original file is never modified. You always get a new `_converted.docx`.
+
+## Example use cases
+
+**Law review article drafted in Google Docs.** The author used hyperlinks throughout — clicking "Sunstein (2024)" jumps to an entry in the References section, and some citations link directly to SSRN or journal pages. The plugin detects all of these, pulls metadata from the URLs, matches internal anchors to reference entries, and produces a document with Bluebook footnotes ready for editorial review.
+
+**Empirical legal studies paper.** The draft is full of parenthetical citations like `(Angelino et al., 2017)` and inline references like `DellaVigna and Gentzkow (2019) show that...`. There is no References section and no hyperlinks — just plain text. The plugin detects the author-date patterns, flags citations it can't find a source for, and converts the ones it can into properly formatted footnotes.
+
+**Conference paper being adapted for a law journal.** The document has 25+ hyperlinks to arXiv, ACM Digital Library, and IEEE, with some sources cited multiple times. The plugin fetches metadata from each URL, formats the first citation in full Bluebook style, and automatically applies *supra* short forms for repeated sources — turning `Hullman (2025)` into `Hullman, *supra* note 3` on subsequent appearances.
+
+**Existing footnotes that need cleanup.** A draft already has footnotes, but they contain bare URLs or incomplete citations rather than Bluebook formatting. The plugin detects these, fetches metadata from the URLs, and replaces the footnote content with proper Bluebook text.
+
+## Key features
+
+- Detects 5 citation patterns: external hyperlinks, internal anchor links, parentheticals, inline author-date, and existing footnotes
+- Handles split hyperlinks from Google Docs exports (where a single citation spans multiple XML elements)
+- Fetches bibliographic metadata from academic sources (arXiv, SSRN, DOI, ACM DL, and more)
+- Supports both footnotes and endnotes with arabic numeral numbering
+- Preserves author names that are grammatically part of a sentence
+- Tracks repeated sources for *Id.* and *supra* short forms
+- Adds Word comments to flag anything that needs manual attention
+- Removes the References section after its content has been moved to footnotes
+- Interactive review — Claude shows you every citation before modifying the document
 
 ## Setup
 
@@ -54,16 +74,7 @@ pip install -e .
 
 ### As a Claude Code plugin (recommended)
 
-Drop your .docx into the conversation and ask Claude to convert citations to Bluebook footnotes — or invoke the skill directly with `/cite2fn:convert`. The skill handles the full workflow interactively:
-
-1. Detects and classifies all citations
-2. Fetches metadata from source URLs
-3. Matches citations to any References section
-4. Formats each citation in Bluebook style (Claude does this directly — no separate API call)
-5. Shows you the results for review before modifying anything
-6. Assembles the final document
-
-This gives you an interactive review loop — Claude will flag uncertain citations and ask for your input before proceeding.
+Drop your .docx into the conversation and ask Claude to convert citations to Bluebook footnotes — or invoke the skill directly with `/cite2fn:convert`. Claude walks through the full workflow interactively, flagging uncertain citations and asking for your input before making changes.
 
 ### As a CLI
 
@@ -73,89 +84,29 @@ The library exposes four commands via `python -m cite2fn.cli`:
 ```bash
 python -m cite2fn.cli detect paper.docx
 ```
-Outputs JSON with all detected citations, their types, display text, URLs, and context.
 
 **Parse references section:**
 ```bash
 python -m cite2fn.cli parse-references paper.docx
 ```
-Outputs JSON with parsed reference entries and any bookmark anchors.
 
 **Fetch URL metadata:**
 ```bash
-# First write URLs to a JSON file: ["https://arxiv.org/abs/...", ...]
 python -m cite2fn.cli fetch-urls urls.json
 ```
-Outputs JSON with bibliographic metadata extracted from each URL.
 
 **Assemble the final document:**
 ```bash
 python -m cite2fn.cli assemble paper.docx citations.json -o paper_converted.docx
 ```
-Takes the original document and a JSON file with Bluebook-formatted citations (the `bluebook_text` field filled in for each), and produces the converted document.
 
-Options:
-- `-o, --output` — output file path (default: `<input>_converted.docx`)
-- `--endnotes` — use endnotes instead of footnotes
-- `--keep-references` — don't remove the References section
+Options: `--endnotes` for endnotes instead of footnotes, `--keep-references` to preserve the References section.
 
-### Typical CLI workflow
+## Limitations
 
-```bash
-# 1. Detect citations
-python -m cite2fn.cli detect paper.docx > citations.json
-
-# 2. Parse references (if the document has a References section)
-python -m cite2fn.cli parse-references paper.docx > references.json
-
-# 3. Fetch metadata for URLs found in citations
-# (extract URLs from citations.json, write to urls.json)
-python -m cite2fn.cli fetch-urls urls.json > metadata.json
-
-# 4. Format citations in Bluebook (fill in bluebook_text in citations.json)
-# This step is done by Claude in the skill, or manually
-
-# 5. Assemble the final document
-python -m cite2fn.cli assemble paper.docx citations_formatted.json -o paper_converted.docx
-```
-
-## Citation patterns handled
-
-| Pattern | Example | Detection method |
-|---------|---------|-----------------|
-| Hyperlink with external URL | `[Kaiser et al (2025)](https://dl.acm.org/...)` | XML hyperlink walk |
-| Hyperlink with internal anchor | `[Rossi et al., 1996](#_hqe1036ucurq)` | Anchor resolution to References section |
-| Parenthetical (no link) | `(Spann et al., 2025)` | Regex matching |
-| Inline author-date | `Neumann et al. (2024) note...` | Regex matching |
-| Existing footnotes | Footnotes with bare URLs or non-Bluebook text | Footnote XML scan |
-
-## Inline text cleanup rules
-
-| Rule | When | Before | After |
-|------|------|--------|-------|
-| 1 | Author name is grammatical (subject/object) | `Bisbee et al. (2023) found that...` | `Bisbee et al. found that...`^1 |
-| 2 | Standalone parenthetical | `...for budget-conscious fans. (Arslan et al., 2023)` | `...for budget-conscious fans.`^1 |
-| 3 | Hyperlinked citation, no grammatical role | `...significant advantages. [Argyle et al. (2023)](url)` | `...significant advantages.`^1 |
-| 4 | Hyperlink on non-citation text | `[Automatic Persona Generation](url) promises...` | `Automatic Persona Generation`^1 `promises...` |
-| 5 | Default | Any remaining hyperlink | Remove link formatting, keep text |
-
-## Architecture
-
-```
-cite2fn/
-  models.py       # Citation, Reference, CitationLedger dataclasses
-  detect.py       # Citation detection (5 patterns)
-  references.py   # References section parsing + matching
-  fetch.py        # URL metadata extraction
-  footnotes.py    # Footnote/endnote XML insertion via lxml
-  cleanup.py      # Inline text cleanup (Rules 1-5)
-  comments.py     # Word comment insertion
-  supra.py        # Id./supra short-form logic
-  assemble.py     # Full assembly pipeline
-  cli.py          # JSON I/O entry points
-```
-
-The plugin skill at `skills/cite2footnote/SKILL.md` orchestrates these modules. Claude handles the Bluebook formatting step directly in conversation — no separate API call needed.
+- Every output needs human review — Bluebook formatting is not guaranteed to be correct
+- Does not handle documents already in Bluebook footnote style
+- Editorial judgment is still required for whether author names should remain in the body text
 
 ## Dependencies
 
