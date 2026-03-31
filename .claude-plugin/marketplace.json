@@ -10,7 +10,8 @@
     {
       "name": "cite2fn",
       "source": ".",
-      "description": "Convert social-science citations in Word documents to Bluebook-formatted footnotes or endnotes"
+      "description": "Convert hyperlinked citations in Word documents to Bluebook-formatted footnotes or endnotes",
+      "license": "MIT"
     }
   ]
 }

@@ -5,7 +5,8 @@ build-backend = "setuptools.backends._legacy:_Backend"
 [project]
 name = "cite2fn"
 version = "0.1.0"
-description = "Convert social-science citations to Bluebook footnotes/endnotes"
+description = "Convert hyperlinked citations in Word documents to Bluebook-formatted footnotes or endnotes"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "python-docx>=1.1.0",
