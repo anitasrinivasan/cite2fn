@@ -27,6 +27,23 @@ Legal academics often draft with author-date parentheticals, hyperlinked author 
 
 Requires Python 3.11+.
 
+### As a Claude Code plugin (recommended)
+
+Install the plugin from GitHub:
+
+```
+/plugin marketplace add anitasrinivasan/cite2fn
+/plugin install cite2fn
+```
+
+Then install the Python dependencies (one time):
+
+```bash
+pip install python-docx lxml httpx beautifulsoup4
+```
+
+### Manual install
+
 ```bash
 git clone https://github.com/anitasrinivasan/cite2fn.git
 cd cite2fn
@@ -35,9 +52,9 @@ pip install -e .
 
 ## Usage
 
-### As a Claude Code skill (recommended)
+### As a Claude Code plugin (recommended)
 
-This tool is designed to run as a [Claude Code](https://claude.ai/code) skill. Drop your .docx into the conversation and ask Claude to convert citations to Bluebook footnotes. The skill handles the full workflow interactively:
+Drop your .docx into the conversation and ask Claude to convert citations to Bluebook footnotes — or invoke the skill directly with `/cite2fn:convert`. The skill handles the full workflow interactively:
 
 1. Detects and classifies all citations
 2. Fetches metadata from source URLs
@@ -138,7 +155,7 @@ cite2fn/
   cli.py          # JSON I/O entry points
 ```
 
-The skill at `.claude/skills/cite2footnote.md` orchestrates these modules. Claude handles the Bluebook formatting step directly in conversation — no separate API call needed.
+The plugin skill at `skills/cite2footnote/SKILL.md` orchestrates these modules. Claude handles the Bluebook formatting step directly in conversation — no separate API call needed.
 
 ## Dependencies
 

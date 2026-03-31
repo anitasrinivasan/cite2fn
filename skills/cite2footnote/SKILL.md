@@ -1,5 +1,5 @@
 ---
-name: cite2footnote
+name: convert
 description: Convert social-science citations in a Word document to Bluebook-formatted footnotes or endnotes
 triggers:
   - bluebook
@@ -18,6 +18,16 @@ Convert social-science-style citations (parenthetical, hyperlinked, inline autho
 
 When the user provides a .docx file and asks to convert citations to Bluebook footnotes/endnotes, or mentions "bluebook", "footnote", "endnote", or "citation conversion".
 
+## Prerequisites
+
+The cite2fn Python package must be installed. If `python3 -m cite2fn.cli detect --help` fails, install it first:
+
+```bash
+pip install -e <plugin_directory>
+```
+
+Where `<plugin_directory>` is the root of the cite2fn plugin (the directory containing `pyproject.toml`). You can find it by looking for the `cite2fn` package in the plugin's install location.
+
 ## Workflow
 
 ### Step 1: Detect citations
@@ -25,7 +35,7 @@ When the user provides a .docx file and asks to convert citations to Bluebook fo
 Run citation detection on the input document:
 
 ```bash
-cd /Users/anitasrinivasan/cite2fn && python3 -m cite2fn.cli detect "<input.docx>"
+python3 -m cite2fn.cli detect "<input.docx>"
 ```
 
 This outputs JSON with all detected citations. Present a summary to the user:
@@ -38,7 +48,7 @@ This outputs JSON with all detected citations. Present a summary to the user:
 If the document has internal-anchor hyperlinks or parenthetical citations without URLs, parse the references section:
 
 ```bash
-cd /Users/anitasrinivasan/cite2fn && python3 -m cite2fn.cli parse-references "<input.docx>"
+python3 -m cite2fn.cli parse-references "<input.docx>"
 ```
 
 Match citations to reference entries to get full bibliographic information.
@@ -48,7 +58,7 @@ Match citations to reference entries to get full bibliographic information.
 For citations with external URLs, fetch metadata:
 
 1. Write the list of unique URLs to a temp JSON file
-2. Run: `cd /Users/anitasrinivasan/cite2fn && python3 -m cite2fn.cli fetch-urls <urls.json>`
+2. Run: `python3 -m cite2fn.cli fetch-urls <urls.json>`
 3. This returns metadata (title, authors, journal, year, etc.) for each URL
 
 ### Step 4: Format citations in Bluebook
@@ -72,7 +82,7 @@ Output the citations as a JSON list with `bluebook_text` and `confidence` filled
 ### Step 5: User review
 
 Present the formatted citations to the user in a clear table:
-- Original display text → Bluebook formatted text
+- Original display text -> Bluebook formatted text
 - Flag any "needs_review" items
 - Ask for corrections before proceeding
 
@@ -81,7 +91,7 @@ Present the formatted citations to the user in a clear table:
 Write the final citations JSON and run assembly:
 
 ```bash
-cd /Users/anitasrinivasan/cite2fn && python3 -m cite2fn.cli assemble "<input.docx>" <citations.json> -o "<output.docx>" [--endnotes] [--keep-references]
+python3 -m cite2fn.cli assemble "<input.docx>" <citations.json> -o "<output.docx>" [--endnotes] [--keep-references]
 ```
 
 This will:
@@ -100,9 +110,15 @@ Show the user:
 - Any issues encountered
 - Path to the output file
 
+Print this warning:
+
+```
+IMPORTANT: This tool provides a strong first pass, but human verification is still required.
+Check: all Word comments, author name retention, italicization/small caps, pin cites, supra/id. cross-references.
+```
+
 ## Important notes
 
 - Always work on a COPY of the document (the assemble command writes to a new file)
 - The original file is never modified
-- Print the standard warning about human verification being required
 - If the document has no citations detected, inform the user and stop

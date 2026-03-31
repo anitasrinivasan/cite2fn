@@ -6,7 +6,7 @@ dist/
 build/
 .eggs/
 *.docx
-!Before-after\ citation\ examples.docx
 .env
 .venv/
 venv/
+cite2footnote_v2_spec.md

@@ -1,0 +1,8 @@
+{
+  "name": "cite2fn",
+  "description": "Convert social-science citations in Word documents to Bluebook-formatted footnotes or endnotes",
+  "version": "0.1.0",
+  "author": {
+    "name": "Anita Srinivasan"
+  }
+}
