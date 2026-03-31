@@ -289,18 +289,26 @@ class FootnoteManager:
         return p
 
     def _add_formatted_runs(self, paragraph: etree._Element, text: str) -> None:
-        """Add text runs to a paragraph, handling *italic* markers."""
+        """Add text runs to a paragraph, handling *italic* and ~small caps~ markers.
+
+        Marker conventions:
+        - *text* for italic (titles, case names, Id., supra)
+        - ~TEXT~ for small caps (journal names, institutional authors)
+        """
         import re
-        # Split on *...* for italic
-        parts = re.split(r"(\*[^*]+\*)", text)
+        # Split on *...* for italic and ~...~ for small caps
+        parts = re.split(r"(\*[^*]+\*|~[^~]+~)", text)
 
         for part in parts:
             if not part:
                 continue
 
             is_italic = part.startswith("*") and part.endswith("*")
+            is_smallcaps = part.startswith("~") and part.endswith("~")
             if is_italic:
-                part = part[1:-1]  # Remove * markers
+                part = part[1:-1]
+            elif is_smallcaps:
+                part = part[1:-1]
 
             run = etree.SubElement(paragraph, _make_tag("r"))
             rpr = etree.SubElement(run, _make_tag("rPr"))
@@ -312,7 +320,9 @@ class FootnoteManager:
             sz.set(_make_tag("val"), "20")
 
             if is_italic:
-                i_elem = etree.SubElement(rpr, _make_tag("i"))
+                etree.SubElement(rpr, _make_tag("i"))
+            elif is_smallcaps:
+                etree.SubElement(rpr, _make_tag("smallCaps"))
 
             t = etree.SubElement(run, _make_tag("t"))
             t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")

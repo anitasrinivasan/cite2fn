@@ -22,8 +22,9 @@ ARXIV_DOMAINS = {"arxiv.org"}
 DOI_DOMAINS = {"doi.org", "dx.doi.org"}
 SSRN_DOMAINS = {"ssrn.com", "papers.ssrn.com"}
 
-# User agent to identify ourselves
+# User agents: custom first, browser-like fallback for 403s
 USER_AGENT = "cite2footnote/0.1 (academic citation tool; +https://github.com/anitasrinivasan/cite2fn)"
+BROWSER_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
 
 def fetch_metadata_batch(
@@ -87,7 +88,11 @@ def _normalize_url(url: str) -> str:
 
 
 def _fetch_single(url: str, timeout: float) -> dict:
-    """Fetch a single URL and extract metadata."""
+    """Fetch a single URL and extract metadata.
+
+    Tries the custom user-agent first. On 403, retries with a browser-like
+    user-agent. For PDF responses, attempts basic metadata extraction.
+    """
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -95,9 +100,20 @@ def _fetch_single(url: str, timeout: float) -> dict:
 
     with httpx.Client(follow_redirects=True, timeout=timeout) as client:
         resp = client.get(url, headers=headers)
+
+        # Retry with browser UA on 403
+        if resp.status_code == 403:
+            headers["User-Agent"] = BROWSER_USER_AGENT
+            resp = client.get(url, headers=headers)
+
         resp.raise_for_status()
 
     content_type = resp.headers.get("content-type", "")
+
+    # Handle PDF responses
+    if "pdf" in content_type:
+        return _extract_pdf_metadata(resp.content, url)
+
     if "html" not in content_type and "xml" not in content_type:
         return {"fetch_error": f"Non-HTML content type: {content_type}", "url": url}
 
@@ -118,6 +134,38 @@ def _fetch_single(url: str, timeout: float) -> dict:
         title_tag = soup.find("title")
         if title_tag:
             metadata["title"] = title_tag.get_text(strip=True)
+
+    return metadata
+
+
+def _extract_pdf_metadata(content: bytes, url: str) -> dict:
+    """Extract metadata from a PDF document.
+
+    Uses pymupdf (PyMuPDF) if available, otherwise returns a minimal
+    result with the URL and a note that PDF parsing is not installed.
+    """
+    metadata: dict = {"url": url}
+    try:
+        import pymupdf  # noqa: F811
+
+        doc = pymupdf.open(stream=content, filetype="pdf")
+        pdf_meta = doc.metadata
+        if pdf_meta.get("title"):
+            metadata["title"] = pdf_meta["title"]
+        if pdf_meta.get("author"):
+            metadata["authors"] = [a.strip() for a in pdf_meta["author"].split(",") if a.strip()]
+        if pdf_meta.get("creationDate"):
+            year_match = re.search(r"(\d{4})", pdf_meta["creationDate"])
+            if year_match:
+                metadata["year"] = year_match.group(1)
+        if pdf_meta.get("subject"):
+            metadata["abstract"] = pdf_meta["subject"]
+        doc.close()
+
+        if len(metadata) == 1:  # only url
+            metadata["fetch_warning"] = "PDF fetched but contained no embedded metadata"
+    except ImportError:
+        metadata["fetch_warning"] = "PDF source detected but pymupdf is not installed (pip install pymupdf)"
 
     return metadata
 

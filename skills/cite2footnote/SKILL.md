@@ -1,11 +1,11 @@
 ---
 name: convert
-description: Convert social-science citations in a Word document (.docx) to Bluebook-formatted footnotes or endnotes. Use when the user mentions bluebook, footnote, endnote, citation conversion, or asks to convert citations.
+description: Convert hyperlinked citations in a Word document (.docx) to Bluebook-formatted footnotes or endnotes. Use when the user mentions bluebook, footnote, endnote, citation conversion, or asks to convert citations.
 ---
 
 # cite2footnote
 
-Convert social-science-style citations (parenthetical, hyperlinked, inline author-date) in a .docx document to Bluebook-formatted footnotes or endnotes.
+Convert citations (hyperlinked, parenthetical, inline author-date) in a .docx document to Bluebook-formatted footnotes or endnotes.
 
 ## When to use
 
@@ -63,10 +63,15 @@ For each citation, use ALL available information to generate proper Bluebook for
 - Surrounding sentence context
 
 Apply these Bluebook 21st edition rules:
-- **Journal articles**: Author, *Title*, Volume JOURNAL First_Page (Year).
-- **Books**: AUTHOR, TITLE Page (Publisher Year).
-- **Web/online sources**: Author, *Title*, SITE NAME (Date), URL.
+- **Journal articles**: Author, *Title*, Volume ~JOURNAL~ First_Page (Year).
+- **Books**: ~AUTHOR~, ~TITLE~ Page (Publisher Year).
+- **Web/online sources**: Author, *Title*, ~SITE NAME~ (Date), URL.
 - **Cases**: *Case Name*, Volume Reporter Page (Court Year).
+
+CRITICAL — Formatting markers for the `bluebook_text` field:
+- Wrap titles, case names, *Id.*, *supra*, and other Bluebook-italicized text in `*asterisks*` (e.g., `*The Role of AI in Law*`, `*Id.* at 5`, `*supra* note 3`).
+- Wrap journal names, institutional authors, and other Bluebook small-caps text in `~tildes~` (e.g., `~HARV. L. REV.~`, `~GOOGLE DEVELOPERS BLOG~`, `~NIST~`).
+- These markers are rendered as Word italic and small caps formatting in the output document.
 
 Set confidence to "needs_review" if information is insufficient. Prefix with [NEEDS MANUAL FORMATTING] if you can't confidently format.
 

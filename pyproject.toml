@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+pdf = ["pymupdf>=1.24"]
 dev = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]
