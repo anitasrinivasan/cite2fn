@@ -312,17 +312,23 @@ class FootnoteManager:
 
             run = etree.SubElement(paragraph, _make_tag("r"))
             rpr = etree.SubElement(run, _make_tag("rPr"))
+
+            # 1. Fonts
             fonts = etree.SubElement(rpr, _make_tag("rFonts"))
             fonts.set(_make_tag("ascii"), "Times New Roman")
             fonts.set(_make_tag("hAnsi"), "Times New Roman")
             fonts.set(_make_tag("cs"), "Times New Roman")
-            sz = etree.SubElement(rpr, _make_tag("sz"))
-            sz.set(_make_tag("val"), "20")
 
+            # 2. Formatting toggles (must come before sz per OOXML spec)
             if is_italic:
                 etree.SubElement(rpr, _make_tag("i"))
             elif is_smallcaps:
-                etree.SubElement(rpr, _make_tag("smallCaps"))
+                sc = etree.SubElement(rpr, _make_tag("smallCaps"))
+                sc.set(_make_tag("val"), "true")
+
+            # 3. Size
+            sz = etree.SubElement(rpr, _make_tag("sz"))
+            sz.set(_make_tag("val"), "20")
 
             t = etree.SubElement(run, _make_tag("t"))
             t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
