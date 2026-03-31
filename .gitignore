@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.docx
+!Before-after\ citation\ examples.docx
+.env
+.venv/
+venv/

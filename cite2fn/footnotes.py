@@ -1,0 +1,312 @@
+"""Footnote and endnote insertion via direct XML manipulation.
+
+python-docx has no footnote creation API, so we work directly with
+the XML using lxml. This module handles:
+- Creating a footnotes/endnotes part from scratch (for docs that have none)
+- Inserting new footnotes/endnotes with formatted text
+- Inserting footnote references in the body at the correct position
+- Replacing existing footnote content
+"""
+
+from __future__ import annotations
+
+import copy
+from lxml import etree
+from docx import Document
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.opc.packuri import PackURI
+from docx.opc.part import Part
+
+W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+W14 = "http://schemas.microsoft.com/office/word/2010/wordml"
+NSMAP = {"w": W, "r": R, "w14": W14}
+
+# Relationship type URIs
+FOOTNOTES_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
+ENDNOTES_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes"
+
+# Content types
+FOOTNOTES_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"
+ENDNOTES_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"
+
+
+def _make_tag(localname: str) -> str:
+    """Create a fully qualified tag name in the Word namespace."""
+    return f"{{{W}}}{localname}"
+
+
+def _make_r_tag(localname: str) -> str:
+    """Create a fully qualified tag name in the relationships namespace."""
+    return f"{{{R}}}{localname}"
+
+
+class FootnoteManager:
+    """Manages footnote/endnote insertion for a document."""
+
+    def __init__(self, doc: Document, use_endnotes: bool = False):
+        self.doc = doc
+        self.use_endnotes = use_endnotes
+        self._notes_part = None
+        self._notes_xml = None
+        self._next_id = None
+        self._rel_type = ENDNOTES_REL if use_endnotes else FOOTNOTES_REL
+        self._content_type = ENDNOTES_CT if use_endnotes else FOOTNOTES_CT
+        self._part_name = "endnotes.xml" if use_endnotes else "footnotes.xml"
+        self._note_tag = "endnote" if use_endnotes else "footnote"
+        self._ref_tag = "endnoteReference" if use_endnotes else "footnoteReference"
+        self._note_ref_tag = "endnoteRef" if use_endnotes else "footnoteRef"
+        self._root_tag = "endnotes" if use_endnotes else "footnotes"
+
+        self._init_notes_part()
+
+    def _init_notes_part(self) -> None:
+        """Find or create the footnotes/endnotes XML part."""
+        # Look for existing part
+        for rel in self.doc.part.rels.values():
+            if self._rel_type in str(rel.reltype):
+                self._notes_part = rel.target_part
+                self._notes_xml = etree.fromstring(self._notes_part.blob)
+                self._compute_next_id()
+                return
+
+        # No existing part — create one from scratch
+        self._create_notes_part()
+
+    def _compute_next_id(self) -> None:
+        """Compute the next available footnote/endnote ID."""
+        max_id = -1
+        for note in self._notes_xml:
+            note_id = note.get(_make_tag("id"))
+            if note_id is not None:
+                try:
+                    max_id = max(max_id, int(note_id))
+                except ValueError:
+                    pass
+        self._next_id = max_id + 1
+
+    def _create_notes_part(self) -> None:
+        """Create a new footnotes/endnotes XML part from scratch."""
+        # Create the root XML element
+        root = etree.Element(
+            _make_tag(self._root_tag),
+            nsmap={"w": W, "r": R, "w14": W14},
+        )
+
+        # Word expects separator notes (these are auto-generated separators)
+        # For Google Docs exports, these may not exist, but Word needs them
+        # for proper rendering. We'll create them.
+        sep_note = self._make_separator_note("-1", "separator")
+        root.append(sep_note)
+        cont_note = self._make_separator_note("0", "continuationSeparator")
+        root.append(cont_note)
+
+        xml_bytes = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+        # Create the OPC part
+        part = Part(
+            partname=PackURI(f"/word/{self._part_name}"),
+            content_type=self._content_type,
+            blob=xml_bytes,
+            package=self.doc.part.package,
+        )
+
+        # Add the relationship
+        self.doc.part.relate_to(part, self._rel_type)
+
+        self._notes_part = part
+        self._notes_xml = root
+        self._next_id = 1  # Start after the separator notes
+
+    def _make_separator_note(self, note_id: str, sep_type: str) -> etree._Element:
+        """Create a separator footnote/endnote element."""
+        note = etree.SubElement(
+            etree.Element("dummy"),  # temporary parent
+            _make_tag(self._note_tag),
+        )
+        note.set(_make_tag("type"), sep_type)
+        note.set(_make_tag("id"), note_id)
+
+        p = etree.SubElement(note, _make_tag("p"))
+        r = etree.SubElement(p, _make_tag("r"))
+        if sep_type == "separator":
+            etree.SubElement(r, _make_tag("separator"))
+        else:
+            etree.SubElement(r, _make_tag("continuationSeparator"))
+
+        # Detach from dummy parent
+        note.getparent().remove(note)
+        return note
+
+    def insert_footnote(
+        self,
+        text: str,
+        paragraph_element: etree._Element,
+        insert_after_element: etree._Element | None = None,
+    ) -> int:
+        """Insert a new footnote/endnote and return its ID.
+
+        Args:
+            text: The footnote text content.
+            paragraph_element: The body paragraph to insert the reference into.
+            insert_after_element: The element (w:r or w:hyperlink) after which
+                to insert the footnote reference. If None, appends to end of paragraph.
+
+        Returns:
+            The footnote/endnote ID number.
+        """
+        note_id = self._next_id
+        self._next_id += 1
+
+        # 1. Create the footnote/endnote element in the notes part
+        note_elem = self._make_note_element(note_id, text)
+        self._notes_xml.append(note_elem)
+
+        # 2. Insert the reference in the body paragraph
+        ref_run = self._make_reference_run(note_id)
+        if insert_after_element is not None:
+            parent = insert_after_element.getparent()
+            idx = list(parent).index(insert_after_element)
+            parent.insert(idx + 1, ref_run)
+        else:
+            paragraph_element.append(ref_run)
+
+        # 3. Update the part blob
+        self._flush()
+
+        return note_id
+
+    def replace_footnote_content(self, footnote_id: int, new_text: str) -> None:
+        """Replace the text content of an existing footnote."""
+        for note in self._notes_xml:
+            if note.get(_make_tag("id")) == str(footnote_id):
+                # Remove all existing content
+                for child in list(note):
+                    note.remove(child)
+
+                # Create new content paragraph
+                p = self._make_note_paragraph(new_text)
+                note.append(p)
+
+                self._flush()
+                return
+
+    def get_all_note_ids(self) -> list[int]:
+        """Get all non-separator footnote/endnote IDs in order."""
+        ids = []
+        for note in self._notes_xml:
+            note_type = note.get(_make_tag("type"))
+            if note_type in ("separator", "continuationSeparator"):
+                continue
+            note_id = note.get(_make_tag("id"))
+            if note_id is not None:
+                ids.append(int(note_id))
+        return sorted(ids)
+
+    def _make_note_element(self, note_id: int, text: str) -> etree._Element:
+        """Create a complete footnote/endnote XML element."""
+        note = etree.Element(_make_tag(self._note_tag))
+        note.set(_make_tag("id"), str(note_id))
+
+        p = self._make_note_paragraph(text)
+        note.append(p)
+        return note
+
+    def _make_note_paragraph(self, text: str) -> etree._Element:
+        """Create the paragraph content for a footnote/endnote."""
+        p = etree.SubElement(etree.Element("dummy"), _make_tag("p"))
+        p.getparent().remove(p)
+
+        # Paragraph properties: 10pt Times New Roman
+        ppr = etree.SubElement(p, _make_tag("pPr"))
+        spacing = etree.SubElement(ppr, _make_tag("spacing"))
+        spacing.set(_make_tag("line"), "240")
+        spacing.set(_make_tag("lineRule"), "auto")
+        rpr_p = etree.SubElement(ppr, _make_tag("rPr"))
+        fonts = etree.SubElement(rpr_p, _make_tag("rFonts"))
+        fonts.set(_make_tag("ascii"), "Times New Roman")
+        fonts.set(_make_tag("hAnsi"), "Times New Roman")
+        fonts.set(_make_tag("cs"), "Times New Roman")
+        sz = etree.SubElement(rpr_p, _make_tag("sz"))
+        sz.set(_make_tag("val"), "20")  # 10pt = 20 half-points
+
+        # Footnote reference run (the superscript number)
+        ref_run = etree.SubElement(p, _make_tag("r"))
+        ref_rpr = etree.SubElement(ref_run, _make_tag("rPr"))
+        rstyle = etree.SubElement(ref_rpr, _make_tag("rStyle"))
+        rstyle.set(_make_tag("val"), "FootnoteReference")
+        valign = etree.SubElement(ref_rpr, _make_tag("vertAlign"))
+        valign.set(_make_tag("val"), "superscript")
+        etree.SubElement(ref_run, _make_tag(self._note_ref_tag))
+
+        # Space after the reference number
+        space_run = etree.SubElement(p, _make_tag("r"))
+        space_rpr = etree.SubElement(space_run, _make_tag("rPr"))
+        fonts2 = etree.SubElement(space_rpr, _make_tag("rFonts"))
+        fonts2.set(_make_tag("ascii"), "Times New Roman")
+        fonts2.set(_make_tag("hAnsi"), "Times New Roman")
+        fonts2.set(_make_tag("cs"), "Times New Roman")
+        sz2 = etree.SubElement(space_rpr, _make_tag("sz"))
+        sz2.set(_make_tag("val"), "20")
+        space_t = etree.SubElement(space_run, _make_tag("t"))
+        space_t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        space_t.text = " "
+
+        # Content runs — handle italic markers for Bluebook formatting
+        # Simple approach: split on *..* for italic spans
+        self._add_formatted_runs(p, text)
+
+        return p
+
+    def _add_formatted_runs(self, paragraph: etree._Element, text: str) -> None:
+        """Add text runs to a paragraph, handling *italic* markers."""
+        import re
+        # Split on *...* for italic
+        parts = re.split(r"(\*[^*]+\*)", text)
+
+        for part in parts:
+            if not part:
+                continue
+
+            is_italic = part.startswith("*") and part.endswith("*")
+            if is_italic:
+                part = part[1:-1]  # Remove * markers
+
+            run = etree.SubElement(paragraph, _make_tag("r"))
+            rpr = etree.SubElement(run, _make_tag("rPr"))
+            fonts = etree.SubElement(rpr, _make_tag("rFonts"))
+            fonts.set(_make_tag("ascii"), "Times New Roman")
+            fonts.set(_make_tag("hAnsi"), "Times New Roman")
+            fonts.set(_make_tag("cs"), "Times New Roman")
+            sz = etree.SubElement(rpr, _make_tag("sz"))
+            sz.set(_make_tag("val"), "20")
+
+            if is_italic:
+                i_elem = etree.SubElement(rpr, _make_tag("i"))
+
+            t = etree.SubElement(run, _make_tag("t"))
+            t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            t.text = part
+
+    def _make_reference_run(self, note_id: int) -> etree._Element:
+        """Create the footnote/endnote reference run for the body text."""
+        run = etree.Element(_make_tag("r"))
+        rpr = etree.SubElement(run, _make_tag("rPr"))
+        rstyle = etree.SubElement(rpr, _make_tag("rStyle"))
+        rstyle.set(_make_tag("val"), "FootnoteReference")
+        valign = etree.SubElement(rpr, _make_tag("vertAlign"))
+        valign.set(_make_tag("val"), "superscript")
+
+        ref = etree.SubElement(run, _make_tag(self._ref_tag))
+        ref.set(_make_tag("id"), str(note_id))
+
+        return run
+
+    def _flush(self) -> None:
+        """Write the modified XML back to the part blob."""
+        self._notes_part._blob = etree.tostring(
+            self._notes_xml,
+            xml_declaration=True,
+            encoding="UTF-8",
+            standalone=True,
+        )
