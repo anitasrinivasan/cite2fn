@@ -68,10 +68,14 @@ class FootnoteManager:
                 self._notes_part = rel.target_part
                 self._notes_xml = etree.fromstring(self._notes_part.blob)
                 self._compute_next_id()
+                self._ensure_arabic_numbering()
                 return
 
         # No existing part — create one from scratch
         self._create_notes_part()
+
+        # Ensure arabic numbering (1, 2, 3) in all cases
+        self._ensure_arabic_numbering()
 
     def _compute_next_id(self) -> None:
         """Compute the next available footnote/endnote ID."""
@@ -84,6 +88,32 @@ class FootnoteManager:
                 except ValueError:
                     pass
         self._next_id = max_id + 1
+
+    def _ensure_arabic_numbering(self) -> None:
+        """Set footnote/endnote numbering to arabic (1, 2, 3).
+
+        Word defaults to arabic for footnotes but roman numerals (i, ii, iii)
+        for endnotes. This explicitly sets decimal numbering in the section
+        properties to guarantee arabic numerals in both cases.
+        """
+        body = self.doc.element.body
+        pr_tag = "endnotePr" if self.use_endnotes else "footnotePr"
+
+        # Ensure sectPr exists
+        sect_pr = body.find(_make_tag("sectPr"))
+        if sect_pr is None:
+            sect_pr = etree.SubElement(body, _make_tag("sectPr"))
+
+        # Find or create the footnotePr/endnotePr element
+        note_pr = sect_pr.find(_make_tag(pr_tag))
+        if note_pr is None:
+            note_pr = etree.SubElement(sect_pr, _make_tag(pr_tag))
+
+        # Set numFmt to decimal (arabic numerals)
+        num_fmt = note_pr.find(_make_tag("numFmt"))
+        if num_fmt is None:
+            num_fmt = etree.SubElement(note_pr, _make_tag("numFmt"))
+        num_fmt.set(_make_tag("val"), "decimal")
 
     def _create_notes_part(self) -> None:
         """Create a new footnotes/endnotes XML part from scratch."""
