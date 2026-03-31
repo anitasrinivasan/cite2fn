@@ -1,13 +1,6 @@
 ---
 name: convert
-description: Convert social-science citations in a Word document to Bluebook-formatted footnotes or endnotes
-triggers:
-  - bluebook
-  - footnote
-  - endnote
-  - citation
-  - cite2fn
-  - convert citations
+description: Convert social-science citations in a Word document (.docx) to Bluebook-formatted footnotes or endnotes. Use when the user mentions bluebook, footnote, endnote, citation conversion, or asks to convert citations.
 ---
 
 # cite2footnote

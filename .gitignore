@@ -9,4 +9,6 @@ build/
 .env
 .venv/
 venv/
+.claude/
+.DS_Store
 cite2footnote_v2_spec.md
