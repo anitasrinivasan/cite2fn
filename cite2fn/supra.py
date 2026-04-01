@@ -70,7 +70,8 @@ def apply_short_forms(
                 fn["bluebook_text"] = _format_id(fn)
             else:
                 fn["short_form_type"] = "supra"
-                fn["bluebook_text"] = _format_supra(fn, first_note)
+                first_fn = next((f for f in footnotes if f["note_id"] == first_note), None)
+                fn["bluebook_text"] = _format_supra(fn, first_note, first_fn)
         else:
             # First occurrence — use full citation
             ledger.first_occurrence[key] = fn["note_id"]
@@ -96,16 +97,35 @@ def _format_id(fn: dict) -> str:
     return f"{prefix}*Id.*"
 
 
-def _format_supra(fn: dict, first_note_id: int) -> str:
-    """Format a supra citation."""
+def _format_supra(fn: dict, first_note_id: int, first_fn: dict | None = None) -> str:
+    """Format a supra citation.
+
+    Gets the author name from the first footnote (the one supra refers back to),
+    falling back to the current citation, then to parsing the first footnote's
+    bluebook_text.
+    """
     signal = fn.get("signal_word", "")
     prefix = f"{signal} " if signal else ""
-    author = fn.get("author_name", "Author")
 
-    # Clean up author name for short form
-    if author:
-        # Use just the last name for supra
-        author = author.split(",")[0].strip()
-        author = re.sub(r"\s+et\s+al\.?", "", author)
+    # Get author from the FIRST footnote (the one supra refers back to)
+    author = None
+    if first_fn:
+        author = first_fn.get("author_name")
+    # Fall back to current citation's author
+    if not author:
+        author = fn.get("author_name")
+    # Last resort: extract leading text before first comma from first footnote's bluebook_text
+    if not author and first_fn:
+        full_text = first_fn.get("bluebook_text", "")
+        if full_text:
+            author = full_text.split(",")[0].strip()
+            author = author.replace("*", "").replace("~", "")
+
+    if not author:
+        author = "[Author]"
+
+    # Clean up: use just last name, strip "et al."
+    author = author.split(",")[0].strip()
+    author = re.sub(r"\s+et\s+al\.?", "", author)
 
     return f"{prefix}{author}, *supra* note {first_note_id}"
