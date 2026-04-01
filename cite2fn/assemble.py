@@ -11,6 +11,7 @@ Takes a document and formatted citations, produces the final output with:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from docx import Document
 
@@ -112,6 +113,12 @@ def assemble_document(
     for entry in footnote_entries:
         cite_to_text[entry["citation_id"]] = entry["bluebook_text"]
 
+    # --- Step 2b: Validate formatting markers ---
+    for entry in footnote_entries:
+        warnings = _validate_bluebook_markers(entry["bluebook_text"])
+        for w in warnings:
+            report["issues"].append(f"Citation {entry['citation_id']}: {w}")
+
     # --- Step 3: Insert footnotes and clean text ---
     # Process in reverse order within each paragraph to avoid index shifts
     paragraphs_cites: dict[int, list[Citation]] = {}
@@ -183,6 +190,23 @@ def assemble_document(
     save_document(doc, output_path)
 
     return report
+
+
+def _validate_bluebook_markers(bluebook_text: str) -> list[str]:
+    """Flag potential formatting issues in bluebook_text."""
+    warnings = []
+    for match in re.finditer(r"~([^~]+)~", bluebook_text):
+        inner = match.group(1).strip()
+        # Strip punctuation and spaces to get the core text
+        core = inner.replace("&", "").replace(" ", "").replace(".", "")
+        # If the core is all-lowercase and short, it's likely an acronym
+        # that shouldn't be in small caps at all
+        if core.islower() and len(core) <= 5:
+            warnings.append(
+                f"Possible acronym in small caps: ~{inner}~ — "
+                f"acronyms like {inner.upper()} should be plain uppercase, not in ~tildes~"
+            )
+    return warnings
 
 
 def _find_insert_position(

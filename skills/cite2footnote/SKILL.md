@@ -70,8 +70,8 @@ Apply these Bluebook 21st edition rules:
 
 CRITICAL — Formatting markers for the `bluebook_text` field:
 - Wrap titles, case names, *Id.*, *supra*, and other Bluebook-italicized text in `*asterisks*` (e.g., `*The Role of AI in Law*`, `*Id.* at 5`, `*supra* note 3`).
-- Wrap journal names, institutional authors, and other Bluebook small-caps text in `~tildes~` using **title case** (e.g., `~Harv. L. Rev.~`, `~Google Developers Blog~`). Title case is required because Word's small caps formatting only transforms lowercase letters into smaller capitals — all-caps input renders with no visible size variation.
-- **Exception for abbreviations/acronyms**: Terms that are naturally all-caps in normal prose (e.g., SEC, CFTC, NIST, W3C, IMDA, ACLU) should be written in **all-lowercase** inside `~tilde~` markers (e.g., `~sec~`, `~cftc~`, `~nist~`, `~sec & cftc~`). This ensures Word renders every letter as a uniform small capital at the same size.
+- Wrap journal names, institutional authors, and other Bluebook small-caps text in `~tildes~` using **title case** (e.g., `~Harv. L. Rev.~`, `~Google Developers Blog~`, `~Tech Pol'y Press~`). Title case is required because Word's small caps formatting only transforms lowercase letters into smaller capitals — all-caps input renders with no visible size variation.
+- **Do NOT use `~tildes~` for acronyms or initialisms.** Terms that are naturally all-caps in normal prose (SEC, CFTC, NIST, W3C, IMDA, ACLU, etc.) should be written as plain uppercase text with no tilde markers. Small caps are only for source names composed of words or word abbreviations. Examples: `SEC, *Algorithmic Trading...*` (no tildes on SEC), `NIST, *Announcing...*` (no tildes on NIST), but `~Harv. L. Rev.~` and `~Nat'l Cybersecurity Ctr. of Excellence~` use tildes because they are words.
 - These markers are rendered as Word italic and small caps formatting in the output document.
 
 Set confidence to "needs_review" if information is insufficient. Prefix with [NEEDS MANUAL FORMATTING] if you can't confidently format.
