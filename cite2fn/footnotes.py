@@ -197,6 +197,28 @@ class FootnoteManager:
         if insert_after_element is not None:
             parent = insert_after_element.getparent()
             idx = list(parent).index(insert_after_element)
+
+            # Advance past any immediately following punctuation run
+            # so the footnote ref appears after punctuation (Bluebook Rule 1.1)
+            next_idx = idx + 1
+            siblings = list(parent)
+            if next_idx < len(siblings):
+                next_elem = siblings[next_idx]
+                if next_elem.tag == _make_tag("r"):
+                    t_elems = next_elem.findall(_make_tag("t"))
+                    if t_elems and t_elems[0].text and t_elems[0].text[0] in ".,;:":
+                        if t_elems[0].text.strip() in (".", ",", ";", ":", ".,", ",.", ". "):
+                            idx = next_idx  # insert after the punctuation-only run
+                        else:
+                            # Split: extract leading punctuation into its own run
+                            punct = t_elems[0].text[0]
+                            t_elems[0].text = t_elems[0].text[1:]
+                            punct_run = copy.deepcopy(next_elem)
+                            for t in punct_run.findall(_make_tag("t")):
+                                t.text = punct
+                            parent.insert(next_idx, punct_run)
+                            idx = next_idx  # insert after the new punctuation-only run
+
             parent.insert(idx + 1, ref_run)
         else:
             paragraph_element.append(ref_run)
